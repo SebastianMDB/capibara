@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Capibara Bot</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Capibara Bot</h1>
+        <p>Panel de actas por WhatsApp</p>
+      </div>
+      <form id="token-form" class="token-form">
+        <input id="token" type="password" autocomplete="current-password" placeholder="Token admin">
+        <button type="submit">Entrar</button>
+      </form>
+    </header>
+
+    <main class="layout">
+      <section class="panel status-panel">
+        <div class="panel-title">
+          <h2>WhatsApp</h2>
+          <span id="wa-state" class="badge">Sin conectar</span>
+        </div>
+        <div id="qr-box" class="qr-box">
+          <span>Esperando QR</span>
+        </div>
+        <div class="actions">
+          <button id="restart-wa" type="button">Reconectar</button>
+          <button id="logout-wa" class="danger" type="button">Cerrar sesion</button>
+        </div>
+      </section>
+
+      <section class="metrics">
+        <article>
+          <span>Grupos activos</span>
+          <strong id="metric-groups">0</strong>
+        </article>
+        <article>
+          <span>Envios</span>
+          <strong id="metric-docs">0</strong>
+        </article>
+        <article>
+          <span>Actas hoy</span>
+          <strong id="metric-counter">0</strong>
+        </article>
+        <article>
+          <span>Pendientes</span>
+          <strong id="metric-pending">0</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Proveedor</h2>
+        </div>
+        <form id="provider-form" class="provider-form">
+          <select id="provider-group" name="providerGroupJid">
+            <option value="">Sin grupo proveedor</option>
+          </select>
+          <input id="provider-group-manual" name="providerGroupManual" placeholder="O pega el JID del grupo proveedor">
+          <button id="refresh-groups" type="button">Actualizar grupos</button>
+          <button type="submit">Guardar proveedor</button>
+        </form>
+        <p id="provider-note" class="hint"></p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Envios recientes</h2>
+        </div>
+        <div id="deliveries" class="table"></div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
