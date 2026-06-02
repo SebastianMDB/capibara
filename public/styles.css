@@ -89,10 +89,22 @@ button:hover {
   background: var(--accent-strong);
 }
 
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 button.danger {
   background: white;
   color: var(--danger);
   border-color: #f2b8b5;
+}
+
+button.compact {
+  min-height: 34px;
+  margin-top: 12px;
+  padding: 0 10px;
+  font-size: 13px;
 }
 
 .layout {

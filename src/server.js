@@ -99,6 +99,19 @@ app.post('/api/whatsapp/logout', async (req, res, next) => {
   }
 });
 
+app.post('/api/pending/clear', async (req, res, next) => {
+  try {
+    const result = store.clearPendingRequests('manual_clear');
+    bot.clearPendingQuoteRefs(result.ids);
+    await store.save();
+    const dashboard = store.dashboard();
+    events.broadcast('dashboard', dashboard);
+    res.json({ ok: true, cleared: result.count, dashboard });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use((error, req, res, next) => {
   console.error(error);
   res.status(400).json({ error: error.message || 'Error inesperado' });

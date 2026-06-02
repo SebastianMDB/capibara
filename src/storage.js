@@ -318,7 +318,8 @@ export class Store {
       providerRequestCode: buildProviderRequestCode(id),
       providerSentAt: '',
       identifiers: [],
-      ...input
+      ...input,
+      identifiers: normalizeIdentifiers(input.identifiers)
     };
     this.data.pendingRequests.unshift(pending);
     this.data.pendingRequests = this.data.pendingRequests.slice(0, 300);
@@ -334,31 +335,43 @@ export class Store {
     return request;
   }
 
-  findPendingRequestForProviderReply({ quotedMessageId = '', text = '', allowQueueFallback = false } = {}) {
+  findPendingRequestByProviderMessageId(providerMessageId = '') {
+    if (!providerMessageId) return null;
+    return this.data.pendingRequests.find((item) => (
+      item.status === 'pending' && item.providerMessageId === providerMessageId
+    )) || null;
+  }
+
+  findPendingRequestForProviderReply({
+    quotedMessageId = '',
+    text = '',
+    allowQueueFallback = false,
+    requireIdentifierMatch = false
+  } = {}) {
     const pending = this.data.pendingRequests
       .filter((item) => item.status === 'pending')
       .toReversed()
       .toSorted(comparePendingProviderOrder);
     if (!pending.length) return null;
 
+    const normalizedText = normalizeText(text);
     if (quotedMessageId) {
       const byQuote = pending.find((item) => item.providerMessageId === quotedMessageId);
-      if (byQuote) return byQuote;
+      if (byQuote && (!requireIdentifierMatch || pendingMatchesText(byQuote, normalizedText))) return byQuote;
+      if (byQuote && requireIdentifierMatch) return null;
     }
 
-    const normalizedText = normalizeText(text);
     if (normalizedText) {
       const byRequestCode = pending.find((item) => (
         item.providerRequestCode && normalizedText.includes(normalizeText(item.providerRequestCode))
       ));
-      if (byRequestCode) return byRequestCode;
+      if (byRequestCode && (!requireIdentifierMatch || pendingMatchesText(byRequestCode, normalizedText))) return byRequestCode;
 
-      const byIdentifier = pending.find((item) => (
-        item.identifiers?.some((identifier) => normalizedText.includes(normalizeText(identifier)))
-      ));
+      const byIdentifier = pending.find((item) => pendingMatchesText(item, normalizedText));
       if (byIdentifier) return byIdentifier;
     }
 
+    if (requireIdentifierMatch) return null;
     if (pending.length === 1) return pending[0];
     if (allowQueueFallback) return pending[0];
     return null;
@@ -372,6 +385,20 @@ export class Store {
     request.completedDeliveryId = delivery?.id || '';
     request.errorText = String(errorText || '').trim();
     return request;
+  }
+
+  clearPendingRequests(errorText = 'manual_clear') {
+    const now = new Date().toISOString();
+    const clearedIds = [];
+    for (const request of this.data.pendingRequests) {
+      if (request.status !== 'pending') continue;
+      request.status = 'cancelled';
+      request.completedAt = now;
+      request.completedDeliveryId = '';
+      request.errorText = String(errorText || '').trim();
+      clearedIds.push(request.id);
+    }
+    return { count: clearedIds.length, ids: clearedIds };
   }
 
   dashboard() {
@@ -403,6 +430,26 @@ function normalizeText(value = '') {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
+}
+
+function normalizeIdentifier(value = '') {
+  return String(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeIdentifiers(values = []) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((value) => normalizeIdentifier(value))
+    .filter(Boolean);
+}
+
+function pendingMatchesText(pending, normalizedText) {
+  if (!normalizedText) return false;
+  return pending.identifiers?.some((identifier) => (
+    normalizedText.includes(normalizeText(identifier))
+  )) || false;
 }
 
 function isGroupJid(value = '') {

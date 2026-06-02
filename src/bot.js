@@ -37,6 +37,12 @@ export class WhatsAppBot {
     return this.status;
   }
 
+  clearPendingQuoteRefs(pendingIds = []) {
+    for (const id of pendingIds) {
+      this.pendingQuotes.delete(id);
+    }
+  }
+
   async listGroups() {
     if (!this.sock || !this.status.connected) return [];
     const groups = await this.sock.groupFetchAllParticipating();
@@ -396,9 +402,19 @@ export class WhatsAppBot {
     const pending = this.store.findPendingRequestForProviderReply({
       quotedMessageId,
       text,
-      allowQueueFallback: true
+      requireIdentifierMatch: true
     });
     if (!pending) {
+      const quotedPending = this.store.findPendingRequestByProviderMessageId(quotedMessageId);
+      if (quotedPending) {
+        this.store.completePendingRequest(quotedPending.id, null, 'error', 'provider_pdf_identifier_mismatch');
+        await this.store.save();
+        await this.sock.sendMessage(quotedPending.originJid, {
+          text: buildMismatchText(quotedPending)
+        }, quoteOptions(this.pendingQuotes.get(quotedPending.id)));
+        this.pendingQuotes.delete(quotedPending.id);
+        this.events.broadcast('dashboard', this.store.dashboard());
+      }
       await fs.rm(outputPath, { force: true });
       return;
     }
@@ -545,7 +561,9 @@ function parseActaRequest(text, patterns = []) {
     const match = value.match(regex);
     if (!match) continue;
     const identifierText = match.slice(1).filter(Boolean).join(' ') || match[0];
-    const identifiers = identifierText.split(/\s+/).filter((part) => part.length >= 4);
+    const identifiers = canonicalizeIdentifiers(
+      identifierText.split(/\s+/).filter((part) => part.length >= 4)
+    );
     return { type: pattern.type, name: pattern.name, identifierText, identifiers };
   }
 
@@ -648,6 +666,10 @@ function buildUnavailableText(pending) {
   return `❌ El acta para\n${requestIdentifier(pending)} no está disponible.`;
 }
 
+function buildMismatchText(pending) {
+  return `❌ El PDF recibido no coincide con\n${requestIdentifier(pending)}.\nSe eliminó la solicitud pendiente.`;
+}
+
 function requestIdentifier(request) {
   return request.identifiers?.join(' ') || request.requestText || request.identifierText || '';
 }
@@ -704,6 +726,12 @@ function normalizeIdentifier(value) {
   return String(value || '')
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
+}
+
+function canonicalizeIdentifiers(values = []) {
+  return values
+    .map((value) => normalizeIdentifier(value))
+    .filter(Boolean);
 }
 
 function sanitizeFileName(value) {

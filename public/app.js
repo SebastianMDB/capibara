@@ -20,7 +20,8 @@ const els = {
   providerNote: document.querySelector('#provider-note'),
   refreshGroups: document.querySelector('#refresh-groups'),
   restartWa: document.querySelector('#restart-wa'),
-  logoutWa: document.querySelector('#logout-wa')
+  logoutWa: document.querySelector('#logout-wa'),
+  clearPending: document.querySelector('#clear-pending')
 };
 
 els.token.value = state.token;
@@ -61,10 +62,12 @@ function renderStatus(status) {
 }
 
 function renderDashboard(dashboard) {
+  const pendingCount = dashboard.pendingRequests || 0;
   els.metricGroups.textContent = dashboard.activeGroups || 0;
   els.metricDocs.textContent = dashboard.totalDeliveries || dashboard.deliveries.length || 0;
   els.metricCounter.textContent = dashboard.todayCounter;
-  els.metricPending.textContent = dashboard.pendingRequests || 0;
+  els.metricPending.textContent = pendingCount;
+  els.clearPending.disabled = pendingCount === 0;
   els.deliveries.innerHTML = dashboard.deliveries.length
     ? dashboard.deliveries.map((delivery) => `
       <div class="delivery">
@@ -149,6 +152,19 @@ els.logoutWa.addEventListener('click', async () => {
     showError(error);
   } finally {
     els.logoutWa.disabled = false;
+  }
+});
+
+els.clearPending.addEventListener('click', async () => {
+  if (!confirm('Eliminar todas las solicitudes pendientes?')) return;
+  els.clearPending.disabled = true;
+  try {
+    const result = await api('/api/pending/clear', { method: 'POST', body: '{}' });
+    renderDashboard(result.dashboard);
+  } catch (error) {
+    showError(error);
+  } finally {
+    els.clearPending.disabled = Number(els.metricPending.textContent) === 0;
   }
 });
 
