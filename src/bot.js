@@ -238,7 +238,7 @@ export class WhatsAppBot {
 
       if (message.key.fromMe) continue;
 
-      if (jid === this.store.getSettings().providerGroupJid) {
+      if (this.store.isProviderGroup(jid)) {
         await this.processProviderMessage(message);
         continue;
       }
@@ -323,7 +323,7 @@ export class WhatsAppBot {
   }
 
   async forwardActaRequest({ jid, phone, command, actaRequest, message, notifyProcessing = true }) {
-    const providerGroupJid = this.store.getSettings().providerGroupJid;
+    const providerGroupJid = this.store.chooseProviderGroupJid();
 
     if (!providerGroupJid) {
       await this.sock.sendMessage(jid, { text: 'No hay grupo proveedor configurado para solicitar actas.' }, { quoted: message });
@@ -335,6 +335,7 @@ export class WhatsAppBot {
       requestType: actaRequest.type,
       identifiers: actaRequest.identifiers,
       originJid: jid,
+      providerGroupJid,
       requesterPhone: phone,
       requesterName: phone
     });
@@ -401,12 +402,13 @@ export class WhatsAppBot {
     const quotedMessageId = getQuotedMessageId(message);
     const pending = this.store.findPendingRequestForProviderReply({
       quotedMessageId,
+      providerGroupJid: message.key.remoteJid,
       text,
       requireIdentifierMatch: true
     });
     if (!pending) {
       const quotedPending = this.store.findPendingRequestByProviderMessageId(quotedMessageId);
-      if (quotedPending) {
+      if (quotedPending && quotedPending.providerGroupJid === message.key.remoteJid) {
         this.store.completePendingRequest(quotedPending.id, null, 'error', 'provider_pdf_identifier_mismatch');
         await this.store.save();
         await this.sock.sendMessage(quotedPending.originJid, {
@@ -452,6 +454,7 @@ export class WhatsAppBot {
     const quotedMessageId = getQuotedMessageId(message);
     const pending = this.store.findPendingRequestForProviderReply({
       quotedMessageId,
+      providerGroupJid: message.key.remoteJid,
       text: responseText,
       allowQueueFallback: isProviderUnavailableText(responseText)
     });

@@ -1,6 +1,6 @@
 const state = {
   token: localStorage.getItem('adminToken') || 'dev-admin-token',
-  settings: { providerGroupJid: '' },
+  settings: { providerGroupJid: '', providerGroupJids: [] },
   groups: []
 };
 
@@ -43,7 +43,7 @@ async function api(path, options = {}) {
 
 async function refresh() {
   const status = await api('/api/status');
-  state.settings = status.settings || { providerGroupJid: '' };
+  state.settings = normalizeSettings(status.settings);
   state.groups = status.whatsapp?.connected ? await loadGroups() : [];
   renderStatus(status.whatsapp);
   renderDashboard(status.dashboard);
@@ -81,25 +81,28 @@ function renderDashboard(dashboard) {
 }
 
 function renderProvider() {
-  const selected = state.settings.providerGroupJid || '';
-  const selectedInList = state.groups.some((group) => group.id === selected);
+  const selected = normalizeProviderGroupJids(state.settings.providerGroupJids?.length
+    ? state.settings.providerGroupJids
+    : state.settings.providerGroupJid);
+  const selectedSet = new Set(selected);
+  const missingSelected = selected.filter((jid) => !state.groups.some((group) => group.id === jid));
   els.providerGroup.innerHTML = [
     '<option value="">Sin grupo proveedor</option>',
     ...state.groups.map((group) => `
       <option value="${escapeHtml(group.id)}">${escapeHtml(group.name)} (${group.participants})</option>
     `),
-    selected && !selectedInList
-      ? `<option value="${escapeHtml(selected)}">Proveedor actual: ${escapeHtml(selected)}</option>`
-      : ''
+    ...missingSelected.map((jid) => `<option value="${escapeHtml(jid)}">Proveedor actual: ${escapeHtml(jid)}</option>`)
   ].join('');
-  els.providerGroup.value = selected;
+  for (const option of els.providerGroup.options) {
+    option.selected = selectedSet.has(option.value);
+  }
   els.providerGroupManual.value = '';
   if (!state.groups.length) {
-    els.providerNote.textContent = 'Conecta WhatsApp y pulsa Actualizar grupos para elegir el proveedor.';
+    els.providerNote.textContent = 'Conecta WhatsApp y pulsa Actualizar grupos para elegir los proveedores.';
     return;
   }
-  els.providerNote.textContent = selected && !selectedInList
-    ? 'El proveedor actual no aparece en la lista de grupos de esta sesion. Revisa que la cuenta conectada este dentro de ese grupo o pulsa Actualizar grupos.'
+  els.providerNote.textContent = missingSelected.length
+    ? 'Hay proveedores que no aparecen en la lista de grupos de esta sesion. Revisa que la cuenta conectada este dentro de esos grupos o pulsa Actualizar grupos.'
     : '';
 }
 
@@ -112,11 +115,11 @@ els.tokenForm.addEventListener('submit', async (event) => {
 
 els.providerForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const manual = els.providerGroupManual.value.trim();
-  const selected = els.providerGroup.value.trim();
+  const manual = normalizeProviderGroupJids(els.providerGroupManual.value);
+  const selected = [...els.providerGroup.selectedOptions].map((option) => option.value).filter(Boolean);
   await api('/api/settings', {
     method: 'POST',
-    body: JSON.stringify({ providerGroupJid: manual || selected })
+    body: JSON.stringify({ providerGroupJids: manual.length ? manual : selected })
   });
   await refresh();
 });
@@ -145,7 +148,7 @@ els.logoutWa.addEventListener('click', async () => {
   try {
     await api('/api/whatsapp/logout', { method: 'POST', body: '{}' });
     state.groups = [];
-    state.settings = { providerGroupJid: '' };
+    state.settings = { providerGroupJid: '', providerGroupJids: [] };
     renderProvider();
     await refresh().catch(() => {});
   } catch (error) {
@@ -185,7 +188,7 @@ function connectWs() {
       renderProvider();
     }
     if (message.type === 'settings') {
-      state.settings = message.payload || { providerGroupJid: '' };
+      state.settings = normalizeSettings(message.payload);
       renderProvider();
     }
   });
@@ -201,6 +204,24 @@ function escapeHtml(value = '') {
     '"': '&quot;',
     "'": '&#039;'
   }[char]));
+}
+
+function normalizeSettings(settings = {}) {
+  const providerGroupJids = normalizeProviderGroupJids(settings.providerGroupJids?.length
+    ? settings.providerGroupJids
+    : settings.providerGroupJid);
+  return {
+    ...settings,
+    providerGroupJid: providerGroupJids[0] || '',
+    providerGroupJids
+  };
+}
+
+function normalizeProviderGroupJids(value = []) {
+  const values = Array.isArray(value)
+    ? value
+    : String(value || '').split(/[\n,;]/);
+  return [...new Set(values.map((item) => item.trim()).filter(Boolean))];
 }
 
 function showError(error) {

@@ -60,6 +60,7 @@ h2 {
 
 input,
 select,
+textarea,
 button {
   min-height: 40px;
   border: 1px solid var(--line);
@@ -68,11 +69,18 @@ button {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   padding: 0 11px;
   background: white;
   color: var(--text);
+}
+
+textarea {
+  min-height: 122px;
+  padding-top: 10px;
+  resize: vertical;
 }
 
 button {
@@ -222,6 +230,7 @@ button.compact {
 .provider-form {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto auto;
+  align-items: start;
   gap: 10px;
 }
 

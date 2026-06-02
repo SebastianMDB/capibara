@@ -177,8 +177,10 @@ const defaultActaPatterns = [
 const defaultStore = {
   settings: {
     providerGroupJid: '',
+    providerGroupJids: [],
     groupStates: {},
-    connectedAccountJid: ''
+    connectedAccountJid: '',
+    providerCursor: 0
   },
   counters: {},
   deliveries: [],
@@ -227,15 +229,21 @@ export class Store {
   }
 
   getSettings() {
+    this.normalizeSettings();
     return this.data.settings;
   }
 
   updateSettings(input) {
+    const providerGroupJids = normalizeProviderGroupJids(
+      input.providerGroupJids ?? input.providerGroupJid ?? []
+    );
     this.data.settings = {
       ...this.data.settings,
-      providerGroupJid: String(input.providerGroupJid || '').trim(),
+      providerGroupJid: providerGroupJids[0] || '',
+      providerGroupJids,
       groupStates: this.data.settings.groupStates || {},
-      connectedAccountJid: this.data.settings.connectedAccountJid || ''
+      connectedAccountJid: this.data.settings.connectedAccountJid || '',
+      providerCursor: normalizeProviderCursor(this.data.settings.providerCursor, providerGroupJids.length)
     };
     return this.data.settings;
   }
@@ -259,10 +267,52 @@ export class Store {
     this.data.settings = {
       ...this.data.settings,
       providerGroupJid: '',
+      providerGroupJids: [],
       groupStates: {},
-      connectedAccountJid: ''
+      connectedAccountJid: '',
+      providerCursor: 0
     };
     this.data.pendingRequests = [];
+  }
+
+  listProviderGroupJids() {
+    this.normalizeSettings();
+    return this.data.settings.providerGroupJids;
+  }
+
+  isProviderGroup(jid) {
+    return this.listProviderGroupJids().includes(String(jid || '').trim());
+  }
+
+  chooseProviderGroupJid() {
+    const providerGroupJids = this.listProviderGroupJids();
+    if (!providerGroupJids.length) return '';
+
+    const pendingCounts = new Map(providerGroupJids.map((jid) => [jid, 0]));
+    for (const request of this.data.pendingRequests) {
+      if (request.status !== 'pending') continue;
+      const providerGroupJid = request.providerGroupJid || this.data.settings.providerGroupJid || '';
+      if (pendingCounts.has(providerGroupJid)) {
+        pendingCounts.set(providerGroupJid, pendingCounts.get(providerGroupJid) + 1);
+      }
+    }
+
+    const cursor = normalizeProviderCursor(this.data.settings.providerCursor, providerGroupJids.length);
+    let selected = providerGroupJids[cursor];
+    let selectedCount = pendingCounts.get(selected);
+
+    for (let offset = 1; offset < providerGroupJids.length; offset += 1) {
+      const candidate = providerGroupJids[(cursor + offset) % providerGroupJids.length];
+      const candidateCount = pendingCounts.get(candidate);
+      if (candidateCount < selectedCount) {
+        selected = candidate;
+        selectedCount = candidateCount;
+      }
+    }
+
+    this.data.settings.providerCursor = (providerGroupJids.indexOf(selected) + 1) % providerGroupJids.length;
+    this.data.settings.providerGroupJid = providerGroupJids[0] || '';
+    return selected;
   }
 
   isGroupEnabled(jid) {
@@ -315,6 +365,7 @@ export class Store {
       status: 'pending',
       createdAt: new Date().toISOString(),
       providerMessageId: '',
+      providerGroupJid: '',
       providerRequestCode: buildProviderRequestCode(id),
       providerSentAt: '',
       identifiers: [],
@@ -344,12 +395,13 @@ export class Store {
 
   findPendingRequestForProviderReply({
     quotedMessageId = '',
+    providerGroupJid = '',
     text = '',
     allowQueueFallback = false,
     requireIdentifierMatch = false
   } = {}) {
     const pending = this.data.pendingRequests
-      .filter((item) => item.status === 'pending')
+      .filter((item) => item.status === 'pending' && pendingBelongsToProvider(item, providerGroupJid))
       .toReversed()
       .toSorted(comparePendingProviderOrder);
     if (!pending.length) return null;
@@ -402,17 +454,35 @@ export class Store {
   }
 
   dashboard() {
+    this.normalizeSettings();
     const todayKey = mexicoDateKey();
     const todayCounters = normalizeDayCounters(this.data.counters[todayKey]);
     return {
       activeGroups: Object.values(this.data.settings.groupStates || {}).filter(Boolean).length,
       pendingRequests: this.data.pendingRequests.filter((request) => request.status === 'pending').length,
+      pendingRequestsByProvider: countPendingByProvider(this.data.pendingRequests, this.data.settings.providerGroupJids),
       todayCounter: Object.values(todayCounters).reduce((total, value) => total + value, 0),
       todayCountersByGroup: todayCounters,
       totalDeliveries: this.data.deliveries.length,
       deliveries: this.data.deliveries.slice(0, 30),
       recentRequests: this.data.pendingRequests.slice(0, 30)
     };
+  }
+
+  normalizeSettings() {
+    const settings = this.data.settings || {};
+    const providerGroupJids = normalizeProviderGroupJids(
+      settings.providerGroupJids?.length ? settings.providerGroupJids : settings.providerGroupJid
+    );
+    this.data.settings = {
+      ...settings,
+      providerGroupJid: providerGroupJids[0] || '',
+      providerGroupJids,
+      groupStates: settings.groupStates || {},
+      connectedAccountJid: settings.connectedAccountJid || '',
+      providerCursor: normalizeProviderCursor(settings.providerCursor, providerGroupJids.length)
+    };
+    return this.data.settings;
   }
 }
 
@@ -443,6 +513,36 @@ function normalizeIdentifiers(values = []) {
   return values
     .map((value) => normalizeIdentifier(value))
     .filter(Boolean);
+}
+
+function normalizeProviderGroupJids(value = []) {
+  const values = Array.isArray(value)
+    ? value
+    : String(value || '').split(/[\n,;]/);
+  return [...new Set(values
+    .map((item) => String(item || '').trim())
+    .filter(Boolean))];
+}
+
+function normalizeProviderCursor(value, providerCount) {
+  if (!providerCount) return 0;
+  const cursor = Number.isInteger(value) ? value : Number(value || 0);
+  return Math.max(0, cursor) % providerCount;
+}
+
+function pendingBelongsToProvider(pending, providerGroupJid = '') {
+  if (!providerGroupJid) return true;
+  return (pending.providerGroupJid || '') === providerGroupJid;
+}
+
+function countPendingByProvider(pendingRequests = [], providerGroupJids = []) {
+  const counts = Object.fromEntries(providerGroupJids.map((jid) => [jid, 0]));
+  for (const request of pendingRequests) {
+    if (request.status !== 'pending') continue;
+    if (!request.providerGroupJid) continue;
+    counts[request.providerGroupJid] = (counts[request.providerGroupJid] || 0) + 1;
+  }
+  return counts;
 }
 
 function pendingMatchesText(pending, normalizedText) {

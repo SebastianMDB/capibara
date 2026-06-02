@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-Abre `http://localhost:3000`, escanea el QR desde WhatsApp y configura el grupo proveedor desde el panel.
+Abre `http://localhost:3000`, escanea el QR desde WhatsApp y configura uno o mas grupos proveedores desde el panel.
 
 ## Configuracion
 
@@ -35,3 +35,7 @@ El contador de actas se reinicia automaticamente por dia segun `America/Mexico_C
 - `saldo`: informa que cualquier integrante del grupo activo puede solicitar actas.
 
 Activa un grupo enviando `activar` desde la cuenta conectada al bot. Cualquier integrante de un grupo activo puede solicitar actas.
+
+## Proveedores
+
+El panel permite seleccionar varios grupos proveedores o pegar sus JID, uno por linea. Cada solicitud se asigna al proveedor con menos pendientes y rota en empates; la respuesta del proveedor se entrega solo al grupo que origino esa solicitud.
