@@ -1,13 +1,16 @@
 :root {
-  color-scheme: light;
-  --bg: #f6f7f9;
-  --panel: #ffffff;
-  --text: #16202a;
-  --muted: #687584;
-  --line: #dce2e8;
-  --accent: #0f8b6f;
-  --accent-strong: #0a6a56;
-  --danger: #b42318;
+  color-scheme: dark;
+  --bg: #0d1117;
+  --panel: #151b23;
+  --panel-strong: #1c2430;
+  --field: #0f1621;
+  --text: #e6edf3;
+  --muted: #8b98a8;
+  --line: #2d3745;
+  --accent: #1f9d7a;
+  --accent-strong: #27b38d;
+  --danger: #ff6b6b;
+  --danger-line: #7f3438;
 }
 
 * {
@@ -28,8 +31,9 @@ body {
   justify-content: space-between;
   gap: 18px;
   align-items: center;
-  background: #12362f;
-  color: white;
+  background: #090d12;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
 }
 
 h1,
@@ -48,7 +52,7 @@ h2 {
 }
 
 .topbar p {
-  color: #c6d8d3;
+  color: var(--muted);
   margin-top: 4px;
 }
 
@@ -73,8 +77,20 @@ select,
 textarea {
   width: 100%;
   padding: 0 11px;
-  background: white;
+  background: var(--field);
   color: var(--text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #667386;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  outline: 2px solid rgba(31, 157, 122, 0.22);
 }
 
 textarea {
@@ -86,7 +102,7 @@ textarea {
 button {
   padding: 0 14px;
   background: var(--accent);
-  color: white;
+  color: #06120f;
   border-color: var(--accent);
   cursor: pointer;
   font-weight: 650;
@@ -103,9 +119,13 @@ button:disabled {
 }
 
 button.danger {
-  background: white;
+  background: #211319;
   color: var(--danger);
-  border-color: #f2b8b5;
+  border-color: var(--danger-line);
+}
+
+button.danger:hover {
+  background: #321820;
 }
 
 button.compact {
@@ -154,8 +174,8 @@ button.compact {
   margin-top: 8px;
   border-radius: 999px;
   padding: 5px 10px;
-  background: #eef6f3;
-  color: var(--accent-strong);
+  background: #123428;
+  color: #75e6c4;
   font-size: 13px;
   font-weight: 700;
 }
@@ -165,11 +185,11 @@ button.compact {
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  border: 1px dashed #aeb9c4;
+  border: 1px dashed #465467;
   border-radius: 8px;
   color: var(--muted);
   overflow: hidden;
-  background: #fbfcfd;
+  background: #0b1017;
 }
 
 .qr-box img {
@@ -191,7 +211,7 @@ button.compact {
 }
 
 .metrics article {
-  background: white;
+  background: var(--panel-strong);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
