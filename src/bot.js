@@ -260,7 +260,7 @@ export class WhatsAppBot {
 
     const batchRequests = parseBatchActaRequests(command);
     if (batchRequests.length > 1) {
-      const limitStatus = this.store.getUserActaLimitStatus(phone);
+      const limitStatus = this.store.getGroupActaLimitStatus(jid);
       if (limitStatus.remaining !== null && limitStatus.remaining <= 0) {
         await this.sock.sendMessage(jid, {
           text: buildActaLimitText(limitStatus)
@@ -308,7 +308,7 @@ export class WhatsAppBot {
     }
 
     if (command.toLowerCase() === 'saldo') {
-      const limitStatus = this.store.getUserActaLimitStatus(phone);
+      const limitStatus = this.store.getGroupActaLimitStatus(jid);
       await this.sock.sendMessage(jid, {
         text: buildSaldoText(limitStatus)
       });
@@ -338,7 +338,7 @@ export class WhatsAppBot {
       return { ok: false };
     }
 
-    const quota = this.store.consumeUserActa(phone, phone);
+    const quota = this.store.consumeGroupActa(jid, jid);
     if (!quota.ok) {
       await this.sock.sendMessage(jid, {
         text: buildActaLimitText(quota.status)
@@ -365,7 +365,7 @@ export class WhatsAppBot {
         text: buildProviderRequestText(actaRequest, command)
       });
     } catch (error) {
-      this.store.refundUserActa(phone);
+      this.store.refundGroupActa(jid);
       this.store.completePendingRequest(pending.id, null, 'error', error.message || 'provider_send_failed');
       await this.store.save();
       logger.warn({
@@ -379,7 +379,7 @@ export class WhatsAppBot {
           : 'No pude enviar la solicitud al grupo proveedor. Revisa la configuracion del proveedor.'
       }, { quoted: message });
       this.events.broadcast('dashboard', this.store.dashboard());
-      this.events.broadcast('userLimits', this.buildUserLimitsPayload());
+      this.events.broadcast('groupLimits', this.buildGroupLimitsPayload());
       return { ok: false };
     }
     this.store.attachProviderMessage(pending.id, providerMessage?.key?.id);
@@ -391,7 +391,7 @@ export class WhatsAppBot {
       }, { quoted: message });
     }
     this.events.broadcast('dashboard', this.store.dashboard());
-    this.events.broadcast('userLimits', this.buildUserLimitsPayload());
+    this.events.broadcast('groupLimits', this.buildGroupLimitsPayload());
     return { ok: true, pending };
   }
 
@@ -491,10 +491,10 @@ export class WhatsAppBot {
     this.events.broadcast('dashboard', this.store.dashboard());
   }
 
-  buildUserLimitsPayload() {
+  buildGroupLimitsPayload() {
     return {
-      defaultUserActaLimit: this.store.getSettings().defaultUserActaLimit,
-      users: this.store.listUserActaLimits()
+      defaultGroupActaLimit: this.store.getSettings().defaultGroupActaLimit,
+      groups: this.store.listGroupActaLimits()
     };
   }
 }
@@ -682,20 +682,20 @@ function buildProcessingText(actaRequest) {
 function buildBatchProcessingText(count, skipped = 0, skippedByLimit = false) {
   const base = `⏳ Procesando ${count} acta${count === 1 ? '' : 's'} solicitada${count === 1 ? '' : 's'}...`;
   if (!skipped) return base;
-  const reason = skippedByLimit ? 'por el limite disponible del usuario' : `porque el maximo por mensaje es ${MAX_BATCH_ACTA_REQUESTS}`;
+  const reason = skippedByLimit ? 'por el limite disponible del grupo' : `porque el maximo por mensaje es ${MAX_BATCH_ACTA_REQUESTS}`;
   return `${base}\nSe omitieron ${skipped} ${reason}.`;
 }
 
 function buildSaldoText(status) {
   if (status.unlimited) {
-    return `Actas usadas: ${status.used}. Limite: ilimitado.`;
+    return `Actas usadas por este grupo: ${status.used}. Limite: ilimitado.`;
   }
-  return `Actas usadas: ${status.used}/${status.effectiveLimit}. Restantes: ${status.remaining}.`;
+  return `Actas usadas por este grupo: ${status.used}/${status.effectiveLimit}. Restantes: ${status.remaining}.`;
 }
 
 function buildActaLimitText(status) {
   const limit = status.effectiveLimit || 0;
-  return `Limite de actas alcanzado. Uso: ${status.used}/${limit}. Contacta al administrador para ampliar o reiniciar tu limite.`;
+  return `Limite de actas del grupo alcanzado. Uso: ${status.used}/${limit}. Contacta al administrador para ampliar o reiniciar el limite.`;
 }
 
 function buildDeliveryCaption(pending, delivery) {

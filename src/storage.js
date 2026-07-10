@@ -181,12 +181,12 @@ const defaultStore = {
     groupStates: {},
     connectedAccountJid: '',
     providerCursor: 0,
-    defaultUserActaLimit: 0
+    defaultGroupActaLimit: 0
   },
   counters: {},
   deliveries: [],
   pendingRequests: [],
-  userActaLimits: {}
+  groupActaLimits: {}
 };
 
 export class Store {
@@ -220,6 +220,8 @@ export class Store {
   }
 
   compact() {
+    this.normalizeSettings();
+    this.normalizeGroupActaLimits();
     const pendingCutoff = Date.now() - PENDING_MAX_AGE_MS;
     this.data.deliveries = this.data.deliveries.slice(0, 100);
     this.data.pendingRequests = this.data.pendingRequests
@@ -228,6 +230,8 @@ export class Store {
     delete this.data.actaPatterns;
     delete this.data.documents;
     delete this.data.archivedActas;
+    delete this.data.userActaLimits;
+    delete this.data.settings.defaultUserActaLimit;
   }
 
   getSettings() {
@@ -246,22 +250,26 @@ export class Store {
       groupStates: this.data.settings.groupStates || {},
       connectedAccountJid: this.data.settings.connectedAccountJid || '',
       providerCursor: normalizeProviderCursor(this.data.settings.providerCursor, providerGroupJids.length),
-      defaultUserActaLimit: normalizeActaLimit(input.defaultUserActaLimit ?? this.data.settings.defaultUserActaLimit)
+      defaultGroupActaLimit: normalizeActaLimit(
+        input.defaultGroupActaLimit ??
+        this.data.settings.defaultGroupActaLimit ??
+        this.data.settings.defaultUserActaLimit
+      )
     };
     return this.data.settings;
   }
 
-  updateDefaultUserActaLimit(limit) {
+  updateDefaultGroupActaLimit(limit) {
     this.normalizeSettings();
-    this.data.settings.defaultUserActaLimit = normalizeActaLimit(limit);
-    return this.data.settings.defaultUserActaLimit;
+    this.data.settings.defaultGroupActaLimit = normalizeActaLimit(limit);
+    return this.data.settings.defaultGroupActaLimit;
   }
 
-  listUserActaLimits() {
-    this.normalizeUserActaLimits();
-    const defaultLimit = this.getDefaultUserActaLimit();
-    return Object.values(this.data.userActaLimits)
-      .map((user) => withUserActaLimitStatus(user, defaultLimit))
+  listGroupActaLimits() {
+    this.normalizeGroupActaLimits();
+    const defaultLimit = this.getDefaultGroupActaLimit();
+    return Object.values(this.data.groupActaLimits)
+      .map((group) => withGroupActaLimitStatus(group, defaultLimit))
       .toSorted((a, b) => {
         const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
         const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
@@ -269,94 +277,94 @@ export class Store {
       });
   }
 
-  getUserActaLimitStatus(phone) {
-    const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) return { phone: '', limit: null, used: 0, remaining: null, unlimited: true };
-    this.normalizeUserActaLimits();
-    const user = this.data.userActaLimits[normalizedPhone] || {
-      phone: normalizedPhone,
-      name: normalizedPhone,
+  getGroupActaLimitStatus(groupJid) {
+    const jid = normalizeJid(groupJid);
+    if (!jid) return { jid: '', limit: null, used: 0, remaining: null, unlimited: true };
+    this.normalizeGroupActaLimits();
+    const group = this.data.groupActaLimits[jid] || {
+      jid,
+      name: jid,
       limit: null,
       used: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    return withUserActaLimitStatus(user, this.getDefaultUserActaLimit());
+    return withGroupActaLimitStatus(group, this.getDefaultGroupActaLimit());
   }
 
-  upsertUserActaLimit(input = {}) {
-    const phone = normalizePhone(input.phone);
-    if (!phone) throw new Error('Telefono requerido');
-    this.normalizeUserActaLimits();
+  upsertGroupActaLimit(input = {}) {
+    const jid = normalizeJid(input.jid);
+    if (!jid) throw new Error('Grupo requerido');
+    this.normalizeGroupActaLimits();
     const now = new Date().toISOString();
-    const previous = this.data.userActaLimits[phone] || {
-      phone,
+    const previous = this.data.groupActaLimits[jid] || {
+      jid,
       createdAt: now,
       used: 0
     };
-    const user = {
+    const group = {
       ...previous,
-      phone,
-      name: String(input.name ?? previous.name ?? phone).trim() || phone,
+      jid,
+      name: String(input.name ?? previous.name ?? jid).trim() || jid,
       limit: input.limit === '' || input.limit === null || input.limit === undefined
         ? null
         : normalizeActaLimit(input.limit),
       used: normalizeActaUsage(input.used ?? previous.used),
       updatedAt: now
     };
-    this.data.userActaLimits[phone] = user;
-    return withUserActaLimitStatus(user, this.getDefaultUserActaLimit());
+    this.data.groupActaLimits[jid] = group;
+    return withGroupActaLimitStatus(group, this.getDefaultGroupActaLimit());
   }
 
-  resetUserActaUsage(phone) {
-    const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) throw new Error('Telefono requerido');
-    this.normalizeUserActaLimits();
-    const existing = this.data.userActaLimits[normalizedPhone] || {
-      phone: normalizedPhone,
-      name: normalizedPhone,
+  resetGroupActaUsage(groupJid) {
+    const jid = normalizeJid(groupJid);
+    if (!jid) throw new Error('Grupo requerido');
+    this.normalizeGroupActaLimits();
+    const existing = this.data.groupActaLimits[jid] || {
+      jid,
+      name: jid,
       limit: null,
       createdAt: new Date().toISOString()
     };
     existing.used = 0;
     existing.updatedAt = new Date().toISOString();
-    this.data.userActaLimits[normalizedPhone] = existing;
-    return withUserActaLimitStatus(existing, this.getDefaultUserActaLimit());
+    this.data.groupActaLimits[jid] = existing;
+    return withGroupActaLimitStatus(existing, this.getDefaultGroupActaLimit());
   }
 
-  consumeUserActa(phone, name = '') {
-    const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) return { ok: true, status: this.getUserActaLimitStatus(phone) };
-    this.normalizeUserActaLimits();
-    const status = this.getUserActaLimitStatus(normalizedPhone);
+  consumeGroupActa(groupJid, name = '') {
+    const jid = normalizeJid(groupJid);
+    if (!jid) return { ok: true, status: this.getGroupActaLimitStatus(groupJid) };
+    this.normalizeGroupActaLimits();
+    const status = this.getGroupActaLimitStatus(jid);
     if (status.remaining !== null && status.remaining <= 0) {
       return { ok: false, status };
     }
 
     const now = new Date().toISOString();
-    const user = this.data.userActaLimits[normalizedPhone] || {
-      phone: normalizedPhone,
-      name: normalizedPhone,
+    const group = this.data.groupActaLimits[jid] || {
+      jid,
+      name: jid,
       limit: null,
       used: 0,
       createdAt: now
     };
-    user.name = String(name || user.name || normalizedPhone).trim();
-    user.used = normalizeActaUsage(user.used) + 1;
-    user.updatedAt = now;
-    this.data.userActaLimits[normalizedPhone] = user;
-    return { ok: true, status: withUserActaLimitStatus(user, this.getDefaultUserActaLimit()) };
+    group.name = String(name || group.name || jid).trim();
+    group.used = normalizeActaUsage(group.used) + 1;
+    group.updatedAt = now;
+    this.data.groupActaLimits[jid] = group;
+    return { ok: true, status: withGroupActaLimitStatus(group, this.getDefaultGroupActaLimit()) };
   }
 
-  refundUserActa(phone) {
-    const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) return null;
-    this.normalizeUserActaLimits();
-    const user = this.data.userActaLimits[normalizedPhone];
-    if (!user) return null;
-    user.used = Math.max(0, normalizeActaUsage(user.used) - 1);
-    user.updatedAt = new Date().toISOString();
-    return withUserActaLimitStatus(user, this.getDefaultUserActaLimit());
+  refundGroupActa(groupJid) {
+    const jid = normalizeJid(groupJid);
+    if (!jid) return null;
+    this.normalizeGroupActaLimits();
+    const group = this.data.groupActaLimits[jid];
+    if (!group) return null;
+    group.used = Math.max(0, normalizeActaUsage(group.used) - 1);
+    group.updatedAt = new Date().toISOString();
+    return withGroupActaLimitStatus(group, this.getDefaultGroupActaLimit());
   }
 
   updateConnectedAccount(jid) {
@@ -600,35 +608,35 @@ export class Store {
       groupStates: settings.groupStates || {},
       connectedAccountJid: settings.connectedAccountJid || '',
       providerCursor: normalizeProviderCursor(settings.providerCursor, providerGroupJids.length),
-      defaultUserActaLimit: normalizeActaLimit(settings.defaultUserActaLimit)
+      defaultGroupActaLimit: normalizeActaLimit(settings.defaultGroupActaLimit ?? settings.defaultUserActaLimit)
     };
     return this.data.settings;
   }
 
-  normalizeUserActaLimits() {
-    const users = this.data.userActaLimits && typeof this.data.userActaLimits === 'object'
-      ? this.data.userActaLimits
+  normalizeGroupActaLimits() {
+    const groups = this.data.groupActaLimits && typeof this.data.groupActaLimits === 'object'
+      ? this.data.groupActaLimits
       : {};
     const normalized = {};
-    for (const user of Object.values(users)) {
-      const phone = normalizePhone(user.phone);
-      if (!phone) continue;
-      normalized[phone] = {
-        phone,
-        name: String(user.name || phone).trim(),
-        limit: user.limit === null || user.limit === undefined ? null : normalizeActaLimit(user.limit),
-        used: normalizeActaUsage(user.used),
-        createdAt: user.createdAt || new Date().toISOString(),
-        updatedAt: user.updatedAt || user.createdAt || new Date().toISOString()
+    for (const group of Object.values(groups)) {
+      const jid = normalizeJid(group.jid);
+      if (!jid) continue;
+      normalized[jid] = {
+        jid,
+        name: String(group.name || jid).trim(),
+        limit: group.limit === null || group.limit === undefined ? null : normalizeActaLimit(group.limit),
+        used: normalizeActaUsage(group.used),
+        createdAt: group.createdAt || new Date().toISOString(),
+        updatedAt: group.updatedAt || group.createdAt || new Date().toISOString()
       };
     }
-    this.data.userActaLimits = normalized;
+    this.data.groupActaLimits = normalized;
     return normalized;
   }
 
-  getDefaultUserActaLimit() {
+  getDefaultGroupActaLimit() {
     this.normalizeSettings();
-    return normalizeActaLimit(this.data.settings.defaultUserActaLimit);
+    return normalizeActaLimit(this.data.settings.defaultGroupActaLimit);
   }
 }
 
@@ -670,6 +678,10 @@ function normalizeProviderGroupJids(value = []) {
     .filter(Boolean))];
 }
 
+function normalizeJid(value = '') {
+  return String(value || '').trim();
+}
+
 function normalizeProviderCursor(value, providerCount) {
   if (!providerCount) return 0;
   const cursor = Number.isInteger(value) ? value : Number(value || 0);
@@ -686,14 +698,14 @@ function normalizeActaUsage(value) {
   return Number.isFinite(used) && used > 0 ? used : 0;
 }
 
-function withUserActaLimitStatus(user, defaultLimit) {
-  const effectiveLimit = user.limit === null || user.limit === undefined
+function withGroupActaLimitStatus(group, defaultLimit) {
+  const effectiveLimit = group.limit === null || group.limit === undefined
     ? defaultLimit
-    : normalizeActaLimit(user.limit);
-  const used = normalizeActaUsage(user.used);
+    : normalizeActaLimit(group.limit);
+  const used = normalizeActaUsage(group.used);
   return {
-    ...user,
-    limit: user.limit === null || user.limit === undefined ? null : normalizeActaLimit(user.limit),
+    ...group,
+    limit: group.limit === null || group.limit === undefined ? null : normalizeActaLimit(group.limit),
     effectiveLimit,
     used,
     remaining: effectiveLimit > 0 ? Math.max(0, effectiveLimit - used) : null,

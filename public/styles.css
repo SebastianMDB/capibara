@@ -256,7 +256,7 @@ button.compact {
 }
 
 .limit-default-form,
-.user-limit-form {
+.group-limit-form {
   display: grid;
   gap: 10px;
   align-items: end;
@@ -267,8 +267,8 @@ button.compact {
   grid-template-columns: minmax(180px, 1fr) auto;
 }
 
-.user-limit-form {
-  grid-template-columns: 1fr 1fr 120px 120px auto;
+.group-limit-form {
+  grid-template-columns: 1fr 1fr 1fr 120px 120px auto;
 }
 
 .limit-default-form label {
@@ -345,11 +345,11 @@ button.compact {
   border-bottom: 0;
 }
 
-.user-limits {
+.group-limits {
   margin-top: 14px;
 }
 
-.user-limit {
+.group-limit {
   display: grid;
   grid-template-columns: 1fr 130px 140px auto;
   gap: 10px;
@@ -359,12 +359,13 @@ button.compact {
   font-size: 14px;
 }
 
-.user-limit:last-child {
+.group-limit:last-child {
   border-bottom: 0;
 }
 
-.user-limit span {
+.group-limit span {
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 760px) {
@@ -379,8 +380,8 @@ button.compact {
   .provider-form,
   .provider-load-row,
   .limit-default-form,
-  .user-limit-form,
-  .user-limit,
+  .group-limit-form,
+  .group-limit,
   .delivery {
     grid-template-columns: 1fr;
   }

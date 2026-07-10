@@ -71,24 +71,27 @@
 
       <section class="panel">
         <div class="panel-title">
-          <h2>Limites por usuario</h2>
+          <h2>Limites por grupo</h2>
         </div>
         <form id="default-limit-form" class="limit-default-form">
           <label>
             Limite por defecto
-            <input id="default-user-limit" type="number" min="0" step="1" placeholder="0 = ilimitado">
+            <input id="default-group-limit" type="number" min="0" step="1" placeholder="0 = ilimitado">
           </label>
           <button type="submit">Guardar limite</button>
         </form>
-        <form id="user-limit-form" class="user-limit-form">
-          <input id="limit-phone" name="phone" placeholder="Telefono">
+        <form id="group-limit-form" class="group-limit-form">
+          <select id="limit-group" name="jid">
+            <option value="">Selecciona un grupo</option>
+          </select>
+          <input id="limit-group-manual" name="jidManual" placeholder="O pega JID del grupo">
           <input id="limit-name" name="name" placeholder="Nombre opcional">
           <input id="limit-value" name="limit" type="number" min="0" step="1" placeholder="Limite propio">
           <input id="limit-used" name="used" type="number" min="0" step="1" placeholder="Usadas">
-          <button type="submit">Guardar usuario</button>
+          <button type="submit">Guardar grupo</button>
         </form>
         <p class="hint">Usa 0 para ilimitado. Deja el limite propio vacio para usar el limite por defecto.</p>
-        <div id="user-limits" class="table user-limits"></div>
+        <div id="group-limits" class="table group-limits"></div>
       </section>
 
       <section class="panel">

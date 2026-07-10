@@ -1,8 +1,8 @@
 const state = {
   token: localStorage.getItem('adminToken') || 'dev-admin-token',
-  settings: { providerGroupJid: '', providerGroupJids: [], defaultUserActaLimit: 0 },
+  settings: { providerGroupJid: '', providerGroupJids: [], defaultGroupActaLimit: 0 },
   groups: [],
-  userLimits: [],
+  groupLimits: [],
   dashboard: null
 };
 
@@ -26,13 +26,14 @@ const els = {
   logoutWa: document.querySelector('#logout-wa'),
   clearPending: document.querySelector('#clear-pending'),
   defaultLimitForm: document.querySelector('#default-limit-form'),
-  defaultUserLimit: document.querySelector('#default-user-limit'),
-  userLimitForm: document.querySelector('#user-limit-form'),
-  limitPhone: document.querySelector('#limit-phone'),
+  defaultGroupLimit: document.querySelector('#default-group-limit'),
+  groupLimitForm: document.querySelector('#group-limit-form'),
+  limitGroup: document.querySelector('#limit-group'),
+  limitGroupManual: document.querySelector('#limit-group-manual'),
   limitName: document.querySelector('#limit-name'),
   limitValue: document.querySelector('#limit-value'),
   limitUsed: document.querySelector('#limit-used'),
-  userLimits: document.querySelector('#user-limits')
+  groupLimits: document.querySelector('#group-limits')
 };
 
 els.token.value = state.token;
@@ -56,11 +57,12 @@ async function refresh() {
   const status = await api('/api/status');
   state.settings = normalizeSettings(status.settings);
   state.groups = status.whatsapp?.connected ? await loadGroups() : [];
-  await loadUserLimits();
+  await loadGroupLimits();
   renderStatus(status.whatsapp);
   renderDashboard(status.dashboard);
   renderProvider();
-  renderUserLimits();
+  renderGroupLimitOptions();
+  renderGroupLimits();
 }
 
 async function loadGroups() {
@@ -145,32 +147,50 @@ function renderProviderLoad() {
     : '<span class="hint">No hay proveedores configurados.</span>';
 }
 
-async function loadUserLimits() {
-  const result = await api('/api/users/limits');
-  state.settings.defaultUserActaLimit = normalizeLimit(result.defaultUserActaLimit);
-  state.userLimits = result.users || [];
+async function loadGroupLimits() {
+  const result = await api('/api/groups/limits');
+  state.settings.defaultGroupActaLimit = normalizeLimit(result.defaultGroupActaLimit);
+  state.groupLimits = result.groups || [];
 }
 
-function renderUserLimits() {
-  els.defaultUserLimit.value = state.settings.defaultUserActaLimit || 0;
-  els.userLimits.innerHTML = state.userLimits.length
-    ? state.userLimits.map((user) => {
-      const limitText = user.unlimited ? 'ilimitado' : `${user.used}/${user.effectiveLimit}`;
-      const remainingText = user.unlimited ? 'Sin limite' : `${user.remaining} restantes`;
-      const ownLimit = user.limit === null || user.limit === undefined ? '' : user.limit;
+function renderGroupLimitOptions() {
+  if (!els.limitGroup) return;
+  const knownJids = new Set(state.groupLimits.map((group) => group.jid));
+  const missingGroups = state.groupLimits.filter((group) => (
+    !state.groups.some((item) => item.id === group.jid)
+  ));
+  els.limitGroup.innerHTML = [
+    '<option value="">Selecciona un grupo</option>',
+    ...state.groups.map((group) => `
+      <option value="${escapeHtml(group.id)}" data-name="${escapeHtml(group.name)}">${escapeHtml(group.name)} (${group.participants})</option>
+    `),
+    ...missingGroups
+      .filter((group) => knownJids.has(group.jid))
+      .map((group) => `<option value="${escapeHtml(group.jid)}" data-name="${escapeHtml(group.name || group.jid)}">${escapeHtml(group.name || group.jid)}</option>`)
+  ].join('');
+}
+
+function renderGroupLimits() {
+  els.defaultGroupLimit.value = state.settings.defaultGroupActaLimit || 0;
+  renderGroupLimitOptions();
+  els.groupLimits.innerHTML = state.groupLimits.length
+    ? state.groupLimits.map((group) => {
+      const limitText = group.unlimited ? 'ilimitado' : `${group.used}/${group.effectiveLimit}`;
+      const remainingText = group.unlimited ? 'Sin limite' : `${group.remaining} restantes`;
+      const ownLimit = group.limit === null || group.limit === undefined ? '' : group.limit;
       return `
-        <div class="user-limit" data-phone="${escapeHtml(user.phone)}">
-          <strong>${escapeHtml(user.name || user.phone)}</strong>
-          <span>${escapeHtml(user.phone)}</span>
+        <div class="group-limit" data-jid="${escapeHtml(group.jid)}">
+          <strong>${escapeHtml(group.name || group.jid)}</strong>
+          <span>${escapeHtml(group.jid)}</span>
           <span>${escapeHtml(limitText)}<br>${escapeHtml(remainingText)}</span>
           <div class="actions">
-            <button type="button" data-action="edit" data-phone="${escapeHtml(user.phone)}" data-name="${escapeHtml(user.name || '')}" data-limit="${escapeHtml(ownLimit)}" data-used="${escapeHtml(user.used)}">Editar</button>
-            <button class="danger" type="button" data-action="reset" data-phone="${escapeHtml(user.phone)}">Reiniciar</button>
+            <button type="button" data-action="edit" data-jid="${escapeHtml(group.jid)}" data-name="${escapeHtml(group.name || '')}" data-limit="${escapeHtml(ownLimit)}" data-used="${escapeHtml(group.used)}">Editar</button>
+            <button class="danger" type="button" data-action="reset" data-jid="${escapeHtml(group.jid)}">Reiniciar</button>
           </div>
         </div>
       `;
     }).join('')
-    : '<span>No hay usuarios registrados. Se crean automaticamente al solicitar actas.</span>';
+    : '<span>No hay grupos registrados. Se crean automaticamente al solicitar actas o al guardar un limite.</span>';
 }
 
 els.tokenForm.addEventListener('submit', async (event) => {
@@ -193,56 +213,62 @@ els.providerForm.addEventListener('submit', async (event) => {
 
 els.defaultLimitForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const result = await api('/api/users/limits/default', {
+  const result = await api('/api/groups/limits/default', {
     method: 'POST',
-    body: JSON.stringify({ defaultUserActaLimit: els.defaultUserLimit.value })
+    body: JSON.stringify({ defaultGroupActaLimit: els.defaultGroupLimit.value })
   });
-  state.settings.defaultUserActaLimit = normalizeLimit(result.defaultUserActaLimit);
-  state.userLimits = result.users || [];
-  renderUserLimits();
+  state.settings.defaultGroupActaLimit = normalizeLimit(result.defaultGroupActaLimit);
+  state.groupLimits = result.groups || [];
+  renderGroupLimits();
 });
 
-els.userLimitForm.addEventListener('submit', async (event) => {
+els.groupLimitForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const result = await api('/api/users/limits', {
+  const selectedOption = els.limitGroup.selectedOptions[0];
+  const manualJid = els.limitGroupManual.value.trim();
+  const jid = manualJid || els.limitGroup.value;
+  const name = els.limitName.value.trim() || selectedOption?.dataset.name || jid;
+  const result = await api('/api/groups/limits', {
     method: 'POST',
     body: JSON.stringify({
-      phone: els.limitPhone.value,
-      name: els.limitName.value,
+      jid,
+      name,
       limit: els.limitValue.value,
       used: els.limitUsed.value
     })
   });
-  state.userLimits = result.users || [];
-  els.userLimitForm.reset();
-  renderUserLimits();
+  state.groupLimits = result.groups || [];
+  els.groupLimitForm.reset();
+  renderGroupLimits();
 });
 
-els.userLimits.addEventListener('click', async (event) => {
+els.groupLimits.addEventListener('click', async (event) => {
   const button = event.target.closest('button');
   if (!button) return;
-  const phone = button.dataset.phone;
+  const jid = button.dataset.jid;
   if (button.dataset.action === 'edit') {
-    els.limitPhone.value = phone;
+    els.limitGroup.value = [...els.limitGroup.options].some((option) => option.value === jid) ? jid : '';
+    els.limitGroupManual.value = els.limitGroup.value ? '' : jid;
     els.limitName.value = button.dataset.name || '';
     els.limitValue.value = button.dataset.limit || '';
     els.limitUsed.value = button.dataset.used || 0;
-    els.limitPhone.focus();
+    (els.limitGroup.value ? els.limitName : els.limitGroupManual).focus();
     return;
   }
   if (button.dataset.action === 'reset') {
-    const result = await api(`/api/users/limits/${encodeURIComponent(phone)}/reset`, {
+    const result = await api(`/api/groups/limits/${encodeURIComponent(jid)}/reset`, {
       method: 'POST',
       body: '{}'
     });
-    state.userLimits = result.users || [];
-    renderUserLimits();
+    state.groupLimits = result.groups || [];
+    renderGroupLimits();
   }
 });
 
 els.refreshGroups.addEventListener('click', async () => {
   state.groups = await loadGroups();
   renderProvider();
+  renderGroupLimitOptions();
 });
 
 els.restartWa.addEventListener('click', async () => {
@@ -264,8 +290,9 @@ els.logoutWa.addEventListener('click', async () => {
   try {
     await api('/api/whatsapp/logout', { method: 'POST', body: '{}' });
     state.groups = [];
-    state.settings = { providerGroupJid: '', providerGroupJids: [] };
+    state.settings = { providerGroupJid: '', providerGroupJids: [], defaultGroupActaLimit: state.settings.defaultGroupActaLimit || 0 };
     renderProvider();
+    renderGroupLimitOptions();
     await refresh().catch(() => {});
   } catch (error) {
     showError(error);
@@ -302,16 +329,17 @@ function connectWs() {
     if (message.type === 'groups') {
       state.groups = message.payload || [];
       renderProvider();
+      renderGroupLimitOptions();
     }
     if (message.type === 'settings') {
       state.settings = normalizeSettings(message.payload);
       renderProvider();
-      renderUserLimits();
+      renderGroupLimits();
     }
-    if (message.type === 'userLimits') {
-      state.settings.defaultUserActaLimit = normalizeLimit(message.payload?.defaultUserActaLimit);
-      state.userLimits = message.payload?.users || [];
-      renderUserLimits();
+    if (message.type === 'groupLimits') {
+      state.settings.defaultGroupActaLimit = normalizeLimit(message.payload?.defaultGroupActaLimit);
+      state.groupLimits = message.payload?.groups || [];
+      renderGroupLimits();
     }
   });
   ws.addEventListener('open', () => refresh().catch(() => {}));
@@ -336,7 +364,7 @@ function normalizeSettings(settings = {}) {
     ...settings,
     providerGroupJid: providerGroupJids[0] || '',
     providerGroupJids,
-    defaultUserActaLimit: normalizeLimit(settings.defaultUserActaLimit)
+    defaultGroupActaLimit: normalizeLimit(settings.defaultGroupActaLimit ?? settings.defaultUserActaLimit)
   };
 }
 

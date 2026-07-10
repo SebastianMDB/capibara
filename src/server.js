@@ -73,45 +73,45 @@ app.post('/api/settings', async (req, res, next) => {
   }
 });
 
-app.get('/api/users/limits', (req, res) => {
+app.get('/api/groups/limits', (req, res) => {
   res.json({
-    defaultUserActaLimit: store.getSettings().defaultUserActaLimit,
-    users: store.listUserActaLimits()
+    defaultGroupActaLimit: store.getSettings().defaultGroupActaLimit,
+    groups: store.listGroupActaLimits()
   });
 });
 
-app.post('/api/users/limits/default', async (req, res, next) => {
+app.post('/api/groups/limits/default', async (req, res, next) => {
   try {
-    const defaultUserActaLimit = store.updateDefaultUserActaLimit(req.body.defaultUserActaLimit);
+    const defaultGroupActaLimit = store.updateDefaultGroupActaLimit(req.body.defaultGroupActaLimit);
     await store.save();
     events.broadcast('settings', store.getSettings());
-    const payload = userLimitsPayload();
-    events.broadcast('userLimits', payload);
-    res.json({ defaultUserActaLimit, users: payload.users });
+    const payload = groupLimitsPayload();
+    events.broadcast('groupLimits', payload);
+    res.json({ defaultGroupActaLimit, groups: payload.groups });
   } catch (error) {
     next(error);
   }
 });
 
-app.post('/api/users/limits', async (req, res, next) => {
+app.post('/api/groups/limits', async (req, res, next) => {
   try {
-    const user = store.upsertUserActaLimit(req.body);
+    const group = store.upsertGroupActaLimit(req.body);
     await store.save();
-    const payload = userLimitsPayload();
-    events.broadcast('userLimits', payload);
-    res.json({ user, users: payload.users });
+    const payload = groupLimitsPayload();
+    events.broadcast('groupLimits', payload);
+    res.json({ group, groups: payload.groups });
   } catch (error) {
     next(error);
   }
 });
 
-app.post('/api/users/limits/:phone/reset', async (req, res, next) => {
+app.post('/api/groups/limits/:jid/reset', async (req, res, next) => {
   try {
-    const user = store.resetUserActaUsage(req.params.phone);
+    const group = store.resetGroupActaUsage(req.params.jid);
     await store.save();
-    const payload = userLimitsPayload();
-    events.broadcast('userLimits', payload);
-    res.json({ user, users: payload.users });
+    const payload = groupLimitsPayload();
+    events.broadcast('groupLimits', payload);
+    res.json({ group, groups: payload.groups });
   } catch (error) {
     next(error);
   }
@@ -179,9 +179,9 @@ function scheduleDailyDashboardRefresh() {
   }, delay);
 }
 
-function userLimitsPayload() {
+function groupLimitsPayload() {
   return {
-    defaultUserActaLimit: store.getSettings().defaultUserActaLimit,
-    users: store.listUserActaLimits()
+    defaultGroupActaLimit: store.getSettings().defaultGroupActaLimit,
+    groups: store.listGroupActaLimits()
   };
 }
