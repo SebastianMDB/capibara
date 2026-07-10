@@ -238,7 +238,7 @@ export class WhatsAppBot {
 
       if (message.key.fromMe) continue;
 
-      if (this.store.isProviderGroup(jid)) {
+      if (this.store.isProviderGroup(jid) || this.store.hasPendingProviderGroup(jid)) {
         await this.processProviderMessage(message);
         continue;
       }
@@ -260,7 +260,16 @@ export class WhatsAppBot {
 
     const batchRequests = parseBatchActaRequests(command);
     if (batchRequests.length > 1) {
-      const selectedRequests = batchRequests.slice(0, MAX_BATCH_ACTA_REQUESTS);
+      const limitStatus = this.store.getUserActaLimitStatus(phone);
+      if (limitStatus.remaining !== null && limitStatus.remaining <= 0) {
+        await this.sock.sendMessage(jid, {
+          text: buildActaLimitText(limitStatus)
+        }, { quoted: message });
+        return;
+      }
+
+      const quotaMax = limitStatus.remaining === null ? MAX_BATCH_ACTA_REQUESTS : limitStatus.remaining;
+      const selectedRequests = batchRequests.slice(0, Math.min(MAX_BATCH_ACTA_REQUESTS, quotaMax));
       let sent = 0;
 
       for (const actaRequest of selectedRequests) {
@@ -278,7 +287,7 @@ export class WhatsAppBot {
       if (sent) {
         const skipped = batchRequests.length - selectedRequests.length;
         await this.sock.sendMessage(jid, {
-          text: buildBatchProcessingText(sent, skipped)
+          text: buildBatchProcessingText(sent, skipped, limitStatus.remaining !== null)
         }, { quoted: message });
       }
       return;
@@ -299,8 +308,9 @@ export class WhatsAppBot {
     }
 
     if (command.toLowerCase() === 'saldo') {
+      const limitStatus = this.store.getUserActaLimitStatus(phone);
       await this.sock.sendMessage(jid, {
-        text: 'Cualquier integrante del grupo activo puede solicitar actas.'
+        text: buildSaldoText(limitStatus)
       });
       return;
     }
@@ -323,12 +333,20 @@ export class WhatsAppBot {
   }
 
   async forwardActaRequest({ jid, phone, command, actaRequest, message, notifyProcessing = true }) {
-    const providerGroupJid = this.store.chooseProviderGroupJid();
-
-    if (!providerGroupJid) {
+    if (!this.store.listProviderGroupJids().length) {
       await this.sock.sendMessage(jid, { text: 'No hay grupo proveedor configurado para solicitar actas.' }, { quoted: message });
       return { ok: false };
     }
+
+    const quota = this.store.consumeUserActa(phone, phone);
+    if (!quota.ok) {
+      await this.sock.sendMessage(jid, {
+        text: buildActaLimitText(quota.status)
+      }, { quoted: message });
+      return { ok: false, limitExceeded: true };
+    }
+
+    const providerGroupJid = this.store.chooseProviderGroupJid();
 
     const pending = this.store.addPendingRequest({
       requestText: command,
@@ -347,6 +365,7 @@ export class WhatsAppBot {
         text: buildProviderRequestText(actaRequest, command)
       });
     } catch (error) {
+      this.store.refundUserActa(phone);
       this.store.completePendingRequest(pending.id, null, 'error', error.message || 'provider_send_failed');
       await this.store.save();
       logger.warn({
@@ -360,6 +379,7 @@ export class WhatsAppBot {
           : 'No pude enviar la solicitud al grupo proveedor. Revisa la configuracion del proveedor.'
       }, { quoted: message });
       this.events.broadcast('dashboard', this.store.dashboard());
+      this.events.broadcast('userLimits', this.buildUserLimitsPayload());
       return { ok: false };
     }
     this.store.attachProviderMessage(pending.id, providerMessage?.key?.id);
@@ -371,6 +391,7 @@ export class WhatsAppBot {
       }, { quoted: message });
     }
     this.events.broadcast('dashboard', this.store.dashboard());
+    this.events.broadcast('userLimits', this.buildUserLimitsPayload());
     return { ok: true, pending };
   }
 
@@ -468,6 +489,13 @@ export class WhatsAppBot {
     }, quoteOptions(this.pendingQuotes.get(pending.id)));
     this.pendingQuotes.delete(pending.id);
     this.events.broadcast('dashboard', this.store.dashboard());
+  }
+
+  buildUserLimitsPayload() {
+    return {
+      defaultUserActaLimit: this.store.getSettings().defaultUserActaLimit,
+      users: this.store.listUserActaLimits()
+    };
   }
 }
 
@@ -651,10 +679,23 @@ function buildProcessingText(actaRequest) {
   return `⏳ Procesando acta para\n${requestIdentifier(actaRequest)}...`;
 }
 
-function buildBatchProcessingText(count, skipped = 0) {
+function buildBatchProcessingText(count, skipped = 0, skippedByLimit = false) {
   const base = `⏳ Procesando ${count} acta${count === 1 ? '' : 's'} solicitada${count === 1 ? '' : 's'}...`;
   if (!skipped) return base;
-  return `${base}\nSe omitieron ${skipped} porque el maximo por mensaje es ${MAX_BATCH_ACTA_REQUESTS}.`;
+  const reason = skippedByLimit ? 'por el limite disponible del usuario' : `porque el maximo por mensaje es ${MAX_BATCH_ACTA_REQUESTS}`;
+  return `${base}\nSe omitieron ${skipped} ${reason}.`;
+}
+
+function buildSaldoText(status) {
+  if (status.unlimited) {
+    return `Actas usadas: ${status.used}. Limite: ilimitado.`;
+  }
+  return `Actas usadas: ${status.used}/${status.effectiveLimit}. Restantes: ${status.remaining}.`;
+}
+
+function buildActaLimitText(status) {
+  const limit = status.effectiveLimit || 0;
+  return `Limite de actas alcanzado. Uso: ${status.used}/${limit}. Contacta al administrador para ampliar o reiniciar tu limite.`;
 }
 
 function buildDeliveryCaption(pending, delivery) {

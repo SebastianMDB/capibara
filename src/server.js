@@ -73,6 +73,50 @@ app.post('/api/settings', async (req, res, next) => {
   }
 });
 
+app.get('/api/users/limits', (req, res) => {
+  res.json({
+    defaultUserActaLimit: store.getSettings().defaultUserActaLimit,
+    users: store.listUserActaLimits()
+  });
+});
+
+app.post('/api/users/limits/default', async (req, res, next) => {
+  try {
+    const defaultUserActaLimit = store.updateDefaultUserActaLimit(req.body.defaultUserActaLimit);
+    await store.save();
+    events.broadcast('settings', store.getSettings());
+    const payload = userLimitsPayload();
+    events.broadcast('userLimits', payload);
+    res.json({ defaultUserActaLimit, users: payload.users });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/users/limits', async (req, res, next) => {
+  try {
+    const user = store.upsertUserActaLimit(req.body);
+    await store.save();
+    const payload = userLimitsPayload();
+    events.broadcast('userLimits', payload);
+    res.json({ user, users: payload.users });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/users/limits/:phone/reset', async (req, res, next) => {
+  try {
+    const user = store.resetUserActaUsage(req.params.phone);
+    await store.save();
+    const payload = userLimitsPayload();
+    events.broadcast('userLimits', payload);
+    res.json({ user, users: payload.users });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/whatsapp/groups', async (req, res, next) => {
   try {
     res.json(await bot.listGroups());
@@ -132,4 +176,11 @@ function scheduleDailyDashboardRefresh() {
     events.broadcast('dashboard', store.dashboard());
     scheduleDailyDashboardRefresh();
   }, delay);
+}
+
+function userLimitsPayload() {
+  return {
+    defaultUserActaLimit: store.getSettings().defaultUserActaLimit,
+    users: store.listUserActaLimits()
+  };
 }

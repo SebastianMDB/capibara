@@ -234,6 +234,50 @@ button.compact {
   gap: 10px;
 }
 
+.provider-load {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.provider-load-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
+  font-size: 14px;
+}
+
+.provider-load-row span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.limit-default-form,
+.user-limit-form {
+  display: grid;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.limit-default-form {
+  grid-template-columns: minmax(180px, 1fr) auto;
+}
+
+.user-limit-form {
+  grid-template-columns: 1fr 1fr 120px 120px auto;
+}
+
+.limit-default-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .hint {
   margin-top: 10px;
   color: var(--muted);
@@ -301,6 +345,28 @@ button.compact {
   border-bottom: 0;
 }
 
+.user-limits {
+  margin-top: 14px;
+}
+
+.user-limit {
+  display: grid;
+  grid-template-columns: 1fr 130px 140px auto;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+  font-size: 14px;
+}
+
+.user-limit:last-child {
+  border-bottom: 0;
+}
+
+.user-limit span {
+  color: var(--muted);
+}
+
 @media (max-width: 760px) {
   .topbar,
   .status-panel {
@@ -311,6 +377,10 @@ button.compact {
   .grid,
   .metrics,
   .provider-form,
+  .provider-load-row,
+  .limit-default-form,
+  .user-limit-form,
+  .user-limit,
   .delivery {
     grid-template-columns: 1fr;
   }
