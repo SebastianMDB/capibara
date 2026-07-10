@@ -24,7 +24,12 @@ Variables opcionales:
 PORT=3000
 ADMIN_TOKEN=cambia-este-token
 MEXICO_TZ=America/Mexico_City
+DATA_DIR=data
+SESSIONS_DIR=sessions
+TMP_DIR=tmp
 ```
+
+Las rutas relativas se resuelven desde la raiz del proyecto. En produccion puedes usar un `DATA_DIR` absoluto para montar un volumen persistente.
 
 El contador de actas se reinicia automaticamente por dia segun `America/Mexico_City`.
 

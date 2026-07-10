@@ -164,6 +164,7 @@ app.use((error, req, res, next) => {
 server.listen(config.port, () => {
   console.log(`Panel disponible en http://localhost:${config.port}`);
   console.log(`Token admin: ${config.adminToken}`);
+  console.log(`Storage: ${store.filePath}`);
 });
 
 function isBaileysConnectionClosed(error) {
