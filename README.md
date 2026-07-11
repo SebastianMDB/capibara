@@ -43,7 +43,7 @@ Activa un grupo enviando `activar` desde la cuenta conectada al bot. Cualquier i
 
 ## Proveedores
 
-El panel permite seleccionar varios grupos proveedores o pegar sus JID, uno por linea. Cada solicitud se asigna al proveedor con menos pendientes y rota en empates; la respuesta del proveedor se entrega solo al grupo que origino esa solicitud.
+El panel permite seleccionar varios grupos proveedores o pegar sus JID, uno por linea. Cada solicitud se reparte en orden entre los proveedores configurados, repitiendo el ciclo segun la cantidad seleccionada. Por ejemplo, con tres proveedores se enviaria al primero, luego al segundo, luego al tercero y vuelve a empezar. La respuesta del proveedor se entrega solo al grupo que origino esa solicitud.
 
 ## Limites por grupo
 

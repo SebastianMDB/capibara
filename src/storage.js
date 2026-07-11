@@ -424,29 +424,9 @@ export class Store {
     const providerGroupJids = this.listProviderGroupJids();
     if (!providerGroupJids.length) return '';
 
-    const pendingCounts = new Map(providerGroupJids.map((jid) => [jid, 0]));
-    for (const request of this.data.pendingRequests) {
-      if (request.status !== 'pending') continue;
-      const providerGroupJid = request.providerGroupJid || this.data.settings.providerGroupJid || '';
-      if (pendingCounts.has(providerGroupJid)) {
-        pendingCounts.set(providerGroupJid, pendingCounts.get(providerGroupJid) + 1);
-      }
-    }
-
     const cursor = normalizeProviderCursor(this.data.settings.providerCursor, providerGroupJids.length);
-    let selected = providerGroupJids[cursor];
-    let selectedCount = pendingCounts.get(selected);
-
-    for (let offset = 1; offset < providerGroupJids.length; offset += 1) {
-      const candidate = providerGroupJids[(cursor + offset) % providerGroupJids.length];
-      const candidateCount = pendingCounts.get(candidate);
-      if (candidateCount < selectedCount) {
-        selected = candidate;
-        selectedCount = candidateCount;
-      }
-    }
-
-    this.data.settings.providerCursor = (providerGroupJids.indexOf(selected) + 1) % providerGroupJids.length;
+    const selected = providerGroupJids[cursor];
+    this.data.settings.providerCursor = (cursor + 1) % providerGroupJids.length;
     this.data.settings.providerGroupJid = providerGroupJids[0] || '';
     return selected;
   }
