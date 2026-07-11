@@ -254,6 +254,52 @@ button.compact {
   gap: 10px;
 }
 
+.provider-groups {
+  min-height: 122px;
+  max-height: 230px;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+}
+
+.provider-choice {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 9px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.provider-choice:hover {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.provider-choice input {
+  width: 16px;
+  min-height: 16px;
+  margin: 2px 0 0;
+}
+
+.provider-choice strong,
+.provider-choice small {
+  display: block;
+}
+
+.provider-choice small {
+  margin-top: 2px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .provider-load {
   display: grid;
   gap: 8px;

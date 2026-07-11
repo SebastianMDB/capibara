@@ -286,6 +286,7 @@ export class Store {
       name: jid,
       limit: null,
       used: 0,
+      usedDate: mexicoDateKey(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -300,8 +301,10 @@ export class Store {
     const previous = this.data.groupActaLimits[jid] || {
       jid,
       createdAt: now,
-      used: 0
+      used: 0,
+      usedDate: mexicoDateKey()
     };
+    const hasUsedInput = input.used !== '' && input.used !== null && input.used !== undefined;
     const group = {
       ...previous,
       jid,
@@ -309,7 +312,8 @@ export class Store {
       limit: input.limit === '' || input.limit === null || input.limit === undefined
         ? null
         : normalizeActaLimit(input.limit),
-      used: normalizeActaUsage(input.used ?? previous.used),
+      used: hasUsedInput ? normalizeActaUsage(input.used) : currentGroupActaUsage(previous),
+      usedDate: hasUsedInput ? mexicoDateKey() : currentGroupActaUsageDate(previous),
       updatedAt: now
     };
     this.data.groupActaLimits[jid] = group;
@@ -324,9 +328,11 @@ export class Store {
       jid,
       name: jid,
       limit: null,
+      usedDate: mexicoDateKey(),
       createdAt: new Date().toISOString()
     };
     existing.used = 0;
+    existing.usedDate = mexicoDateKey();
     existing.updatedAt = new Date().toISOString();
     this.data.groupActaLimits[jid] = existing;
     return withGroupActaLimitStatus(existing, this.getDefaultGroupActaLimit());
@@ -347,10 +353,12 @@ export class Store {
       name: jid,
       limit: null,
       used: 0,
+      usedDate: mexicoDateKey(),
       createdAt: now
     };
     group.name = String(name || group.name || jid).trim();
-    group.used = normalizeActaUsage(group.used) + 1;
+    group.used = currentGroupActaUsage(group) + 1;
+    group.usedDate = mexicoDateKey();
     group.updatedAt = now;
     this.data.groupActaLimits[jid] = group;
     return { ok: true, status: withGroupActaLimitStatus(group, this.getDefaultGroupActaLimit()) };
@@ -362,7 +370,8 @@ export class Store {
     this.normalizeGroupActaLimits();
     const group = this.data.groupActaLimits[jid];
     if (!group) return null;
-    group.used = Math.max(0, normalizeActaUsage(group.used) - 1);
+    group.used = Math.max(0, currentGroupActaUsage(group) - 1);
+    group.usedDate = mexicoDateKey();
     group.updatedAt = new Date().toISOString();
     return withGroupActaLimitStatus(group, this.getDefaultGroupActaLimit());
   }
@@ -625,7 +634,8 @@ export class Store {
         jid,
         name: String(group.name || jid).trim(),
         limit: group.limit === null || group.limit === undefined ? null : normalizeActaLimit(group.limit),
-        used: normalizeActaUsage(group.used),
+        used: currentGroupActaUsage(group),
+        usedDate: currentGroupActaUsageDate(group),
         createdAt: group.createdAt || new Date().toISOString(),
         updatedAt: group.updatedAt || group.createdAt || new Date().toISOString()
       };
@@ -698,11 +708,23 @@ function normalizeActaUsage(value) {
   return Number.isFinite(used) && used > 0 ? used : 0;
 }
 
+function currentGroupActaUsage(group = {}) {
+  return currentGroupActaUsageDate(group) === mexicoDateKey()
+    ? normalizeActaUsage(group.used)
+    : 0;
+}
+
+function currentGroupActaUsageDate(group = {}) {
+  const today = mexicoDateKey();
+  const dateKey = String(group.usedDate || today).trim();
+  return dateKey === today ? today : dateKey;
+}
+
 function withGroupActaLimitStatus(group, defaultLimit) {
   const effectiveLimit = group.limit === null || group.limit === undefined
     ? defaultLimit
     : normalizeActaLimit(group.limit);
-  const used = normalizeActaUsage(group.used);
+  const used = currentGroupActaUsage(group);
   return {
     ...group,
     limit: group.limit === null || group.limit === undefined ? null : normalizeActaLimit(group.limit),

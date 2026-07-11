@@ -17,7 +17,7 @@ const els = {
   metricCounter: document.querySelector('#metric-counter'),
   metricPending: document.querySelector('#metric-pending'),
   providerForm: document.querySelector('#provider-form'),
-  providerGroup: document.querySelector('#provider-group'),
+  providerGroups: document.querySelector('#provider-groups'),
   providerGroupManual: document.querySelector('#provider-group-manual'),
   providerNote: document.querySelector('#provider-note'),
   providerLoad: document.querySelector('#provider-load'),
@@ -103,16 +103,29 @@ function renderProvider() {
     : state.settings.providerGroupJid);
   const selectedSet = new Set(selected);
   const missingSelected = selected.filter((jid) => !state.groups.some((group) => group.id === jid));
-  els.providerGroup.innerHTML = [
-    '<option value="">Sin grupo proveedor</option>',
-    ...state.groups.map((group) => `
-      <option value="${escapeHtml(group.id)}">${escapeHtml(group.name)} (${group.participants})</option>
-    `),
-    ...missingSelected.map((jid) => `<option value="${escapeHtml(jid)}">Proveedor actual: ${escapeHtml(jid)}</option>`)
-  ].join('');
-  for (const option of els.providerGroup.options) {
-    option.selected = selectedSet.has(option.value);
-  }
+  const providerOptions = [
+    ...state.groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      meta: `${group.participants} participantes`
+    })),
+    ...missingSelected.map((jid) => ({
+      id: jid,
+      name: jid,
+      meta: 'Proveedor actual'
+    }))
+  ];
+  els.providerGroups.innerHTML = providerOptions.length
+    ? providerOptions.map((group) => `
+      <label class="provider-choice">
+        <input type="checkbox" name="providerGroupJids" value="${escapeHtml(group.id)}" ${selectedSet.has(group.id) ? 'checked' : ''}>
+        <span>
+          <strong>${escapeHtml(group.name)}</strong>
+          <small>${escapeHtml(group.meta)}</small>
+        </span>
+      </label>
+    `).join('')
+    : '<span class="hint">Sin grupos cargados.</span>';
   els.providerGroupManual.value = '';
   if (!state.groups.length) {
     els.providerNote.textContent = 'Conecta WhatsApp y pulsa Actualizar grupos para elegir los proveedores.';
@@ -203,7 +216,9 @@ els.tokenForm.addEventListener('submit', async (event) => {
 els.providerForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const manual = normalizeProviderGroupJids(els.providerGroupManual.value);
-  const selected = [...els.providerGroup.selectedOptions].map((option) => option.value).filter(Boolean);
+  const selected = [...els.providerGroups.querySelectorAll('input[name="providerGroupJids"]:checked')]
+    .map((input) => input.value)
+    .filter(Boolean);
   await api('/api/settings', {
     method: 'POST',
     body: JSON.stringify({ providerGroupJids: manual.length ? manual : selected })
