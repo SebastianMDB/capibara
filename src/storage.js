@@ -689,15 +689,13 @@ function normalizeActaUsage(value) {
 }
 
 function currentGroupActaUsage(group = {}) {
-  return currentGroupActaUsageDate(group) === mexicoDateKey()
-    ? normalizeActaUsage(group.used)
-    : 0;
+  return normalizeActaUsage(group.used);
 }
 
 function currentGroupActaUsageDate(group = {}) {
   const today = mexicoDateKey();
   const dateKey = String(group.usedDate || today).trim();
-  return dateKey === today ? today : dateKey;
+  return dateKey || today;
 }
 
 function withGroupActaLimitStatus(group, defaultLimit) {

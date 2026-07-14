@@ -31,7 +31,7 @@ TMP_DIR=tmp
 
 Las rutas relativas se resuelven desde la raiz del proyecto. En produccion puedes usar un `DATA_DIR` absoluto para montar un volumen persistente.
 
-El contador de actas se reinicia automaticamente por dia segun `America/Mexico_City`.
+El contador de actas persiste hasta que el administrador lo edite o reinicie desde el panel.
 
 ## Uso por WhatsApp
 
